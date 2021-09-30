@@ -1,5 +1,7 @@
-# include <iostream>
-# include <string>
+// https://answers.ros.org/question/273046/pcd-visualization-in-rviz-closed/
+
+#include <iostream>
+#include <string>
 
 #include <ros/ros.h>
 
@@ -13,12 +15,17 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
+  if (argc != 2) {
+    cerr << "Requires 1 argument for pcd file path" << endl;
+    return 1; 
+  }
+
   double x_cloud; double y_cloud; double z_cloud;
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
   ros::init (argc, argv, "my_pcl_tutorial");
   ros::NodeHandle nh;
   ros::Publisher pub = nh.advertise<PointCloud> ("points2", 1);
-  pcl::io::loadPCDFile<pcl::PointXYZ> ("yourfile.pcd", *cloud);
+  pcl::io::loadPCDFile<pcl::PointXYZ> (argv[1], *cloud);
 
   PointCloud::Ptr msg (new PointCloud);
   msg->header.frame_id = "frame1";
