@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>rotate_pcd</name>
+  <version>0.0.1</version>
+  <description>The rotate_pcd package</description>
+  <maintainer email="christopher_hong@brown.edu">Christopher Hong</maintainer>
+  <license>NA</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+</package>
