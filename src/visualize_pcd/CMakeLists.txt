@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(visualize_pcd)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 find_package(catkin REQUIRED COMPONENTS roscpp pcl_ros)
 
 ## System dependencies are found with CMake's conventions

@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 
   double x_cloud; double y_cloud; double z_cloud;
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-  ros::init (argc, argv, "my_pcl_tutorial");
+  ros::init (argc, argv, string("visualize_pcd_") + string(argv[1]));
   ros::NodeHandle nh;
   ros::Publisher pub = nh.advertise<PointCloud> ("points2", 1);
   pcl::io::loadPCDFile<pcl::PointXYZ> (argv[1], *cloud);
