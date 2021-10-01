@@ -15,20 +15,26 @@ using boost::filesystem::path;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
-vector<vector<float>> getRotationAngles(float startAngle, float endAngle, int numIntervals)
+vector<vector<float>> getRotationAngles(int numIntervalsIn2PI)
 {
-  float intervalAngle = (endAngle - startAngle) / numIntervals;
-  vector<float> intervals;
-  float currAngle = startAngle;
-  while (currAngle < endAngle) {
-    intervals.push_back(currAngle);
+  float intervalAngle = 2*M_PI / numIntervalsIn2PI;
+  vector<float> intervals_0_to_2pi;
+  float currAngle = 0;
+  while (currAngle < 2*M_PI) {
+    intervals_0_to_2pi.push_back(currAngle);
+    currAngle += intervalAngle;
+  }
+  vector<float> intervals_npihalf_to_pihalf;
+  currAngle = -M_PI/2;
+  while (currAngle < M_PI/2) {
+    intervals_npihalf_to_pihalf.push_back(currAngle);
     currAngle += intervalAngle;
   }
   
   vector<vector<float>> rotationAngles;
-  for (float zAngle: intervals) {
-    for (float yAngle: intervals) {
-      for (float xAngle: intervals) {
+  for (float zAngle: intervals_0_to_2pi) {
+    for (float yAngle: intervals_npihalf_to_pihalf) {
+      for (float xAngle: intervals_0_to_2pi) {
         rotationAngles.push_back({zAngle, yAngle, xAngle});
       }
     }
@@ -49,10 +55,8 @@ int main(int argc, char** argv)
   PointCloud::Ptr inputCloud(new PointCloud);
   pcl::io::loadPCDFile(inputFilepath.string(), *inputCloud);
 
-  float startAngle = 0;
-  float endAngle = M_PI;
-  float numIntervals = 20;
-  vector<vector<float>> rotationAngles = getRotationAngles(startAngle, endAngle, numIntervals);
+  float numIntervalsIn2PI = 20;
+  vector<vector<float>> rotationAngles = getRotationAngles(numIntervalsIn2PI);
   int i = 0;
   for (vector<float> angles: rotationAngles) {
     PointCloud::Ptr outputCloud(new PointCloud);
