@@ -1,5 +1,6 @@
 #include <iostream>
 #include <math.h>
+#include <random>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -15,9 +16,8 @@ using boost::filesystem::path;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
-vector<vector<float>> getRotationAngles(int numIntervalsIn2PI)
+vector<vector<float>> getRotationAngles(int intervalAngle)
 {
-  float intervalAngle = 2*M_PI / numIntervalsIn2PI;
   vector<float> intervals_0_to_2pi;
   float currAngle = 0;
   while (currAngle < 2*M_PI) {
@@ -55,16 +55,26 @@ int main(int argc, char** argv)
   PointCloud::Ptr inputCloud(new PointCloud);
   pcl::io::loadPCDFile(inputFilepath.string(), *inputCloud);
 
-  float numIntervalsIn2PI = 20;
-  vector<vector<float>> rotationAngles = getRotationAngles(numIntervalsIn2PI);
+  float numIntervalsIn2PI = 10;
+  float intervalAngle = 2*M_PI / numIntervalsIn2PI;
+
+  float randomIntervalAnglePertubationRatio = 0.25;
+  float maxPertubation = randomIntervalAnglePertubationRatio * intervalAngle;
+  default_random_engine generator;
+  uniform_real_distribution<float> pertubationDistribution(-maxPertubation, maxPertubation);
+
+  vector<vector<float>> rotationAngles = getRotationAngles(intervalAngle);
   int i = 0;
   for (vector<float> angles: rotationAngles) {
     PointCloud::Ptr outputCloud(new PointCloud);
 
     Matrix3f M;
-    M = AngleAxisf(angles[0], Vector3f::UnitZ())
-        * AngleAxisf(angles[1], Vector3f::UnitY()) 
-        * AngleAxisf(angles[2], Vector3f::UnitX());
+    float angleZ = angles[0] + pertubationDistribution(generator);
+    float angleY = angles[1] + pertubationDistribution(generator);
+    float angleX = angles[2] + pertubationDistribution(generator);
+    M = AngleAxisf(angleZ, Vector3f::UnitZ())
+        * AngleAxisf(angleY, Vector3f::UnitY()) 
+        * AngleAxisf(angleX, Vector3f::UnitX());
     for (auto point: *inputCloud) {
       Vector3f p(point.x, point.y, point.z);
       Vector3f rotated_p = M * p;
