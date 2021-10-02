@@ -48,5 +48,5 @@ bm.free()
 basic_cube = bpy.data.objects.new('Basic_Cube', mesh)
 scene.collection.objects.link(basic_cube)
 
-bpy.ops.export_scene.obj(filepath="/home/mrincredible/temp/test_cube.obj", 
+bpy.ops.export_scene.obj(filepath="data/basic_cube.obj", 
                          check_existing=False)

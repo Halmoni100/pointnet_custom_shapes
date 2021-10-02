@@ -13,5 +13,5 @@ bm.free()
 basic_sphere = bpy.data.objects.new('Basic_Sphere', mesh)
 scene.collection.objects.link(basic_sphere)
 
-bpy.ops.export_scene.obj(filepath="/home/mrincredible/temp/test_sphere.obj",
+bpy.ops.export_scene.obj(filepath="data/basic_sphere.obj",
                          check_existing=False)
