@@ -69,7 +69,6 @@ int main(int argc, char** argv)
 
   vector<vector<float>> rotationAngles = getRotationAngles(intervalAngle);
   int i = 0;
-  cout << "ran1" << endl;
   for (vector<float> angles: rotationAngles) {
     PointCloud::Ptr outputCloud(new PointCloud);
 
