@@ -1,7 +1,6 @@
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/variables_map.hpp>
 #include <iostream>
 #include <math.h>
+#include <random>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -46,17 +45,41 @@ vector<vector<float>> getRotationAngles(float intervalAngle)
   return rotationAngles;
 }
 
-vector<float> getScales(int numIntervals, float maxScale)
+template <class T>
+vector<T> getRandomSubset(vector<T> input, float ratio)
 {
-  if (numIntervals == 1)
+  vector<T> subset(input);
+  random_shuffle(subset.begin(), subset.end());
+  size_t subsetSize = input.size() * ratio;
+  size_t numElementsToRemove = input.size() - subsetSize;
+  for (int i = 0; i < numElementsToRemove; i++)
   {
-    return {maxScale};
+    subset.pop_back();
+  }
+  return subset;
+}
+
+
+vector<string> scalingAxes = {"X","Y","Z"}; 
+
+struct ScaleIntervalParams
+{
+  int numIntervals;
+  float minScale;
+  float maxScale;
+};
+
+vector<float> getScales(ScaleIntervalParams params)
+{
+  if (params.numIntervals == 1)
+  {
+    return {params.minScale};
   }
 
   vector<float> scales;
-  float intervalScale = maxScale / numIntervals;
-  float currScale = 0.0;
-  while (currScale < maxScale)
+  float intervalScale = (params.maxScale - params.minScale) / (params.numIntervals - 1);
+  float currScale = params.minScale;
+  while (currScale <= params.maxScale)
   {
     scales.push_back(currScale);
     currScale += intervalScale;
@@ -64,85 +87,150 @@ vector<float> getScales(int numIntervals, float maxScale)
   return scales;
 }
 
-struct ScaleIntervalParams
+struct TranslateParams
 {
-  string axis;
-  int numIntervals;
-  float maxScaling;
+  path inputFilepath;
+  path outputPath;
+  int numIntervalsIn2PI;
+  float rotationsRatio;
+  float pertubationRatio;
+  map<string, ScaleIntervalParams> scalingArgs;
 };
 
-pair<po::variables_map, vector<ScaleIntervalParams>> parse_arguments(int argc, char** argv)
+vector<vector<float>> getXYZScales(map<string, ScaleIntervalParams> scalingArgs)
+{
+  map<string, vector<float>> scalesByAxis;
+  for (string axis: scalingAxes)
+  {
+    if (scalingArgs.find(axis) == scalingArgs.end())
+    {
+      scalesByAxis[axis] = {1.0};
+    } else {
+      scalesByAxis[axis] = getScales(scalingArgs[axis]);
+    }
+  } 
+
+  vector<vector<float>> xyzScales;
+  for (float zScale: scalesByAxis["Z"]) {
+    for (float yScale: scalesByAxis["Y"]) {
+      for (float xScale: scalesByAxis["X"]) {
+        xyzScales.push_back({xScale, yScale, zScale});
+      }
+    }
+  }
+  return xyzScales;
+}
+
+TranslateParams parse_arguments(int argc, char** argv)
 {
   po::options_description desc{"Allowed options"};
   desc.add_options()
     ("help,h", "Transform pcd file by scaling then rotation")
-    ("input,i", po::value<string>()->required(), "Path to .pcd input file")
-    ("output,o", po::value<string>()->required(), "Path to output directory of transformed .pcd files")
-    ("rotate,r", po::value<int>(), "Number of rotation intervals in 2pi")
-    ("x", po::value<int>(), "Number of intervals for scaling in x direction")
-    ("X", po::value<float>(), "Max scaling value in x direction")
-    ("y", po::value<int>(), "Number of intervals for scaling in y direction")
-    ("Y", po::value<float>(), "Max scaling value in y direction")
-    ("z", po::value<int>(), "Number of intervals for scaling in z direction")
-    ("Z", po::value<float>(), "Max scaling value in z direction")
+    ("input,i", po::value<string>(), "Path to .pcd input file")
+    ("output,o", po::value<string>(), "Path to output directory of transformed .pcd files")
+    ("rotate,r", po::value<int>()->default_value(1), "Number of rotation intervals in 2pi")
+    ("rotationsRatio,R", po::value<float>()->default_value(1.0), "Ratio b/w (0,1] of rotations to take from euler angle set.  Rotations will be chosen at random")
+    ("pertubationRatio,P", po::value<float>()->default_value(0.0), "Size of rotation pertubation relative to interval angle")
   ;
+  for (string axis: scalingAxes)
+  {
+    desc.add_options()
+      (("num" + axis).c_str(), po::value<int>(), ("Number of intervals for scaling in " + axis + " direction").c_str())
+      (("min" + axis).c_str(), po::value<float>(), ("Min scaling value in " + axis + " direction").c_str())
+      (("max" + axis).c_str(), po::value<float>(), ("Max scaling value in " + axis + " direction").c_str())
+    ;
+  }
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
-  vector<pair<string, string>> scalingOptions = {{"x","X"}, {"y","Y"}, {"z","Z"}}; 
-  vector<ScaleIntervalParams> scalingArgs;
-  for (auto options: scalingOptions)
+  if (vm.count("help")) {
+    cout << desc << endl;
+    exit(0);
+  }
+
+  map<string, ScaleIntervalParams> scalingArgs;
+  for (string axis: scalingAxes)
   {
-    if ( (vm.count(options.first) && !vm.count(options.second)) ||
-         (!vm.count(options.first) && vm.count(options.second))) {
+    string numArg = "num" + axis;
+    string minArg = "min" + axis;
+    string maxArg = "max" + axis;
+    bool valuesGiven = true;
+    if (vm.count(numArg) != (vm.count(minArg) || vm.count(maxArg))) { 
       cerr << "Both number of intervals and max scaling value must be given for a direction" << endl;
       exit(1);
     }
-    if (vm.count(options.first))
+    if (vm.count(numArg))
     {
-      scalingArgs.push_back({options.first, vm[options.first].as<int>(), vm[options.second].as<float>()});
+      scalingArgs[axis] = {vm[numArg].as<int>(), vm[minArg].as<float>(), vm[maxArg].as<float>()};
     }
   }
-  return {vm, scalingArgs};
+
+  float rotationsRatio = vm["rotationsRatio"].as<float>();
+  if (rotationsRatio > 1 || rotationsRatio <= 0)
+  {
+    cerr << "rotationsRatio must be b/w (0,1]" << endl;
+    exit(1);
+  }
+
+  TranslateParams params = {vm["input"].as<string>(), vm["output"].as<string>(), 
+                            vm["rotate"].as<int>(), rotationsRatio, vm["pertubationRatio"].as<float>(),
+                            scalingArgs};
+  return params;
+}
+
+PointCloud::Ptr getTransformedCloud(PointCloud::Ptr inputCloud, Matrix3f transform)
+{
+  PointCloud::Ptr transformedCloud(new PointCloud);
+  for (auto point: *inputCloud) {
+    Vector3f p(point.x, point.y, point.z);
+    Vector3f rotated_p = transform * p;
+    pcl::PointXYZ newPoint(rotated_p[0], rotated_p[1], rotated_p[2]);
+    transformedCloud->push_back(newPoint);
+  } 
+  return transformedCloud; 
 }
 
 int main(int argc, char** argv)
 {
-  pair<po::variables_map, vector<ScaleIntervalParams>> parse_args_return = parse_arguments(argc, argv);
-  po::variables_map vm = parse_args_return.first;
-  vector<ScaleIntervalParams> scalingArgs = parse_args_return.second;
-
-  if (argc != 3) {
-    cerr << "Requires 2 arguments: pcd input and pcd output path" << endl;
-
-    return 1;
-  }
-  srand(1234);
+  TranslateParams params = parse_arguments(argc, argv);
   
-  path inputFilepath = path(argv[1]);
-  path outputDir = path(argv[2]);
-  string inputFilenameStem = inputFilepath.stem().string();
+  string inputFilenameStem = params.inputFilepath.stem().string();
    
   PointCloud::Ptr inputCloud(new PointCloud);
-  pcl::io::loadPCDFile(inputFilepath.string(), *inputCloud);
+  pcl::io::loadPCDFile(params.inputFilepath.string(), *inputCloud);
 
-  float numIntervalsIn2PI = 10;
-  float intervalAngle = 2*M_PI / numIntervalsIn2PI;
+  // Scaling
+  
+  vector<PointCloud::Ptr> scaledClouds;
+  
+  vector<vector<float>> xyzScales = getXYZScales(params.scalingArgs);
+  for (vector<float> scales: xyzScales)
+  {
+    Matrix3f M;
+    M << scales[0], 0, 0,
+         0, scales[1], 0,
+         0, 0, scales[2];
+    scaledClouds.push_back(getTransformedCloud(inputCloud, M));
+  }
 
-  float randomIntervalAnglePertubationRatio = 0.25;
-  float maxPertubation = randomIntervalAnglePertubationRatio * intervalAngle;
+  // Rotation (combined with scaling)
+
+  srand(1234);
+
+  float intervalAngle = 2*M_PI / params.numIntervalsIn2PI;
+
+  float maxPertubation = params.pertubationRatio * intervalAngle;
   auto get_pertubation = [maxPertubation]()
   {
-    float x = (float) rand() / (float) RAND_MAX;
+    float x = (float) rand() / ((float) RAND_MAX + 1.0);
     return maxPertubation * (2*x - 1);
   };
 
-  vector<vector<float>> rotationAngles = getRotationAngles(intervalAngle);
-  int i = 0;
-  for (vector<float> angles: rotationAngles) {
-    PointCloud::Ptr outputCloud(new PointCloud);
+  vector<PointCloud::Ptr> rotAndScaledClouds;
 
+  vector<vector<float>> rotationAngles = getRandomSubset(getRotationAngles(intervalAngle), params.rotationsRatio);
+  for (vector<float> angles: rotationAngles) {
     Matrix3f M;
     float angleZ = angles[0] + get_pertubation();
     float angleY = angles[1] + get_pertubation();
@@ -150,17 +238,17 @@ int main(int argc, char** argv)
     M = AngleAxisf(angleZ, Vector3f::UnitZ())
         * AngleAxisf(angleY, Vector3f::UnitY()) 
         * AngleAxisf(angleX, Vector3f::UnitX());
-    for (auto point: *inputCloud) {
-      Vector3f p(point.x, point.y, point.z);
-      Vector3f rotated_p = M * p;
-      pcl::PointXYZ newPoint(rotated_p[0], rotated_p[1], rotated_p[2]);
-      outputCloud->push_back(newPoint);
-    } 
+    for (PointCloud::Ptr scaledCloud: scaledClouds) {
+      rotAndScaledClouds.push_back(getTransformedCloud(scaledCloud, M));
+    }
+  }
 
-    string outputFilename = inputFilenameStem + "_rot" + to_string(i) + ".pcd";
-    path outputFilepath = outputDir / outputFilename;
-    pcl::io::savePCDFile(outputFilepath.string(), *outputCloud);
+  // Write transformed clouds
 
-    i += 1;
+  for (size_t i = 0; i < rotAndScaledClouds.size(); i++) {
+    PointCloud::Ptr transformedCloud = rotAndScaledClouds[i];
+    string outputFilename = inputFilenameStem + "_transformed" + to_string(i) + ".pcd";
+    path outputFilepath = params.outputPath / outputFilename;
+    pcl::io::savePCDFile(outputFilepath.string(), *transformedCloud);
   }
 }	
