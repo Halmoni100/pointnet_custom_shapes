@@ -6,7 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(catkin REQUIRED COMPONENTS pcl_ros)
 find_package(PCL REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
-find_package(Boost REQUIRED COMPONENTS filesystem)
+find_package(Boost REQUIRED COMPONENTS filesystem program_options)
 
 catkin_package(
   CATKIN_DEPENDS pcl_ros

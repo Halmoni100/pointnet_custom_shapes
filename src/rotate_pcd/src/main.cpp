@@ -1,3 +1,5 @@
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/variables_map.hpp>
 #include <iostream>
 #include <math.h>
 
@@ -6,12 +8,15 @@
 #include <pcl/point_types.h>
 #include <pcl_ros/io/pcd_io.h>
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
 
 using Eigen::Matrix3f;
 using Eigen::Vector3f;
 using Eigen::AngleAxisf;
 using namespace std;
 using boost::filesystem::path;
+
+namespace po = boost::program_options;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
@@ -41,10 +46,76 @@ vector<vector<float>> getRotationAngles(float intervalAngle)
   return rotationAngles;
 }
 
+vector<float> getScales(int numIntervals, float maxScale)
+{
+  if (numIntervals == 1)
+  {
+    return {maxScale};
+  }
+
+  vector<float> scales;
+  float intervalScale = maxScale / numIntervals;
+  float currScale = 0.0;
+  while (currScale < maxScale)
+  {
+    scales.push_back(currScale);
+    currScale += intervalScale;
+  }
+  return scales;
+}
+
+struct ScaleIntervalParams
+{
+  string axis;
+  int numIntervals;
+  float maxScaling;
+};
+
+pair<po::variables_map, vector<ScaleIntervalParams>> parse_arguments(int argc, char** argv)
+{
+  po::options_description desc{"Allowed options"};
+  desc.add_options()
+    ("help,h", "Transform pcd file by scaling then rotation")
+    ("input,i", po::value<string>()->required(), "Path to .pcd input file")
+    ("output,o", po::value<string>()->required(), "Path to output directory of transformed .pcd files")
+    ("rotate,r", po::value<int>(), "Number of rotation intervals in 2pi")
+    ("x", po::value<int>(), "Number of intervals for scaling in x direction")
+    ("X", po::value<float>(), "Max scaling value in x direction")
+    ("y", po::value<int>(), "Number of intervals for scaling in y direction")
+    ("Y", po::value<float>(), "Max scaling value in y direction")
+    ("z", po::value<int>(), "Number of intervals for scaling in z direction")
+    ("Z", po::value<float>(), "Max scaling value in z direction")
+  ;
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  vector<pair<string, string>> scalingOptions = {{"x","X"}, {"y","Y"}, {"z","Z"}}; 
+  vector<ScaleIntervalParams> scalingArgs;
+  for (auto options: scalingOptions)
+  {
+    if ( (vm.count(options.first) && !vm.count(options.second)) ||
+         (!vm.count(options.first) && vm.count(options.second))) {
+      cerr << "Both number of intervals and max scaling value must be given for a direction" << endl;
+      exit(1);
+    }
+    if (vm.count(options.first))
+    {
+      scalingArgs.push_back({options.first, vm[options.first].as<int>(), vm[options.second].as<float>()});
+    }
+  }
+  return {vm, scalingArgs};
+}
+
 int main(int argc, char** argv)
 {
+  pair<po::variables_map, vector<ScaleIntervalParams>> parse_args_return = parse_arguments(argc, argv);
+  po::variables_map vm = parse_args_return.first;
+  vector<ScaleIntervalParams> scalingArgs = parse_args_return.second;
+
   if (argc != 3) {
     cerr << "Requires 2 arguments: pcd input and pcd output path" << endl;
+
     return 1;
   }
   srand(1234);
