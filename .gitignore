@@ -4,5 +4,3 @@ logs/
 .catkin_workspace
 .catkin_tools/
 .cache/
-
-data/
