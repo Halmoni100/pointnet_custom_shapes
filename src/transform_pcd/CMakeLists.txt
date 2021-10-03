@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(rotate_pcd)
+project(transform_pcd)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -12,16 +12,16 @@ catkin_package(
   CATKIN_DEPENDS pcl_ros
 )
 
-add_executable(rotate_pcd src/main.cpp)
+add_executable(transform_pcd src/main.cpp)
 
-target_include_directories(rotate_pcd
+target_include_directories(transform_pcd
   PRIVATE ${catkin_INCLUDE_DIRS}
   PRIVATE ${PCL_INCLUDE_DIRS}
   PRIVATE ${Boost_INCLUDE_DIRS}
 )
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(rotate_pcd
+target_link_libraries(transform_pcd
   PRIVATE ${catkin_LIBRARIES}
   PRIVATE ${PCL_LIBRARY_DIRS}
   PRIVATE Eigen3::Eigen
@@ -29,6 +29,6 @@ target_link_libraries(rotate_pcd
 )
 
 ## Install ##
-install(TARGETS rotate_pcd
+install(TARGETS transform_pcd
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
